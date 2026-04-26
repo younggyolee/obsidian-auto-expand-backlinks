@@ -1,7 +1,7 @@
 {
   "id": "auto-expand-backlinks",
   "name": "Auto-Expand Backlinks",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "minAppVersion": "1.4.0",
   "description": "Automatically expand backlink context (chevrons) in the bottom backlinks panel by a configurable depth.",
   "author": "younggyolee",

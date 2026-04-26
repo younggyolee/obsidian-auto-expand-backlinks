@@ -1,4 +1,4 @@
-import { App, Plugin, PluginSettingTab, Setting, View } from "obsidian";
+import { App, Plugin, PluginSettingTab, Setting } from "obsidian";
 
 interface AutoExpandBacklinksSettings {
   enabled: boolean;
@@ -18,31 +18,24 @@ const DEFAULT_SETTINGS: AutoExpandBacklinksSettings = {
   perClickDelayMs: 20,
 };
 
-interface SearchResultDomLike {
-  extraContext?: boolean;
-  setExtraContext?: (value: boolean) => void;
-  changed?: () => void;
-  containerEl?: HTMLElement;
-  el?: HTMLElement;
-}
-
-interface BacklinkComponentLike {
-  backlinkDom?: SearchResultDomLike;
-  unlinkedDom?: SearchResultDomLike;
-}
-
-interface ViewWithBacklinks extends View {
-  backlinks?: BacklinkComponentLike;
-}
-
+// CSS selectors for backlink panels in any view (MarkdownView's
+// embedded-backlinks, the standalone backlink pane, and Daily Notes Editor's
+// per-card backlinks — all share these class names).
+const PANEL_SELECTORS = [
+  ".embedded-backlinks",
+  ".workspace-leaf-content[data-type='backlink']",
+];
 const MATCH_SELECTOR = ".search-result-file-match";
 const DOWN_BTN_SELECTOR = ".search-result-hover-button.mod-bottom";
 const UP_BTN_SELECTOR = ".search-result-hover-button.mod-top";
+const HEADER_TOGGLE_SELECTOR =
+  ".clickable-icon[aria-label='Show more context']";
 
 export default class AutoExpandBacklinksPlugin extends Plugin {
   settings: AutoExpandBacklinksSettings = DEFAULT_SETTINGS;
   private pendingTimeout: number | null = null;
   private runId = 0;
+  private mutationObserver: MutationObserver | null = null;
 
   async onload() {
     await this.loadSettings();
@@ -58,8 +51,10 @@ export default class AutoExpandBacklinksPlugin extends Plugin {
       this.app.workspace.on("active-leaf-change", () => this.scheduleApply()),
     );
 
-    // Apply on initial load too.
-    this.app.workspace.onLayoutReady(() => this.scheduleApply());
+    this.app.workspace.onLayoutReady(() => {
+      this.installPanelObserver();
+      this.scheduleApply();
+    });
   }
 
   onunload() {
@@ -67,6 +62,8 @@ export default class AutoExpandBacklinksPlugin extends Plugin {
       window.clearTimeout(this.pendingTimeout);
       this.pendingTimeout = null;
     }
+    this.mutationObserver?.disconnect();
+    this.mutationObserver = null;
   }
 
   async loadSettings() {
@@ -77,6 +74,30 @@ export default class AutoExpandBacklinksPlugin extends Plugin {
     await this.saveData(this.settings);
   }
 
+  // Watch for new backlink panels appearing (e.g. DNE renders new cards as you
+  // scroll). Cheap: just triggers our debounced apply when relevant nodes show.
+  private installPanelObserver() {
+    if (this.mutationObserver) return;
+    this.mutationObserver = new MutationObserver((mutations) => {
+      for (const m of mutations) {
+        for (const node of Array.from(m.addedNodes)) {
+          if (!(node instanceof HTMLElement)) continue;
+          if (
+            node.matches?.(MATCH_SELECTOR) ||
+            node.querySelector?.(MATCH_SELECTOR)
+          ) {
+            this.scheduleApply();
+            return;
+          }
+        }
+      }
+    });
+    this.mutationObserver.observe(document.body, {
+      childList: true,
+      subtree: true,
+    });
+  }
+
   scheduleApply() {
     if (!this.settings.enabled) return;
     if (this.pendingTimeout !== null) {
@@ -84,67 +105,55 @@ export default class AutoExpandBacklinksPlugin extends Plugin {
     }
     this.pendingTimeout = window.setTimeout(() => {
       this.pendingTimeout = null;
-      void this.applyToAllBacklinkPanels();
+      void this.applyToAllPanels();
     }, this.settings.applyDelayMs);
   }
 
-  private async applyToAllBacklinkPanels() {
+  private async applyToAllPanels() {
     const myRunId = ++this.runId;
-    for (const dom of this.collectBacklinkDoms()) {
-      if (myRunId !== this.runId) return; // newer run superseded us
-      await this.applyToDom(dom, myRunId);
-    }
-  }
-
-  private collectBacklinkDoms(): SearchResultDomLike[] {
-    const doms: SearchResultDomLike[] = [];
-
-    for (const leaf of this.app.workspace.getLeavesOfType("markdown")) {
-      const view = leaf.view as ViewWithBacklinks;
-      const backlinks = view.backlinks;
-      if (backlinks?.backlinkDom) doms.push(backlinks.backlinkDom);
-      if (backlinks?.unlinkedDom) doms.push(backlinks.unlinkedDom);
-    }
-    for (const leaf of this.app.workspace.getLeavesOfType("backlink")) {
-      const backlinks = leaf.view as unknown as BacklinkComponentLike;
-      if (backlinks?.backlinkDom) doms.push(backlinks.backlinkDom);
-      if (backlinks?.unlinkedDom) doms.push(backlinks.unlinkedDom);
-    }
-    return doms;
-  }
-
-  private async applyToDom(dom: SearchResultDomLike, myRunId: number) {
-    if (this.settings.showMoreContext && dom.extraContext !== true) {
-      if (typeof dom.setExtraContext === "function") {
-        dom.setExtraContext(true);
-      } else {
-        dom.extraContext = true;
-      }
-      if (typeof dom.changed === "function") dom.changed();
-      // Wait for re-render before clicking expand buttons.
-      await sleep(this.settings.applyDelayMs);
+    const panels = this.collectPanels();
+    for (const panel of panels) {
       if (myRunId !== this.runId) return;
+      await this.applyToPanel(panel, myRunId);
+    }
+  }
+
+  private collectPanels(): HTMLElement[] {
+    const seen = new Set<HTMLElement>();
+    for (const sel of PANEL_SELECTORS) {
+      document
+        .querySelectorAll<HTMLElement>(sel)
+        .forEach((el) => seen.add(el));
+    }
+    return Array.from(seen);
+  }
+
+  private async applyToPanel(panel: HTMLElement, myRunId: number) {
+    if (this.settings.showMoreContext) {
+      const toggle = panel.querySelector<HTMLElement>(HEADER_TOGGLE_SELECTOR);
+      if (toggle && !toggle.classList.contains("is-active")) {
+        toggle.click();
+        await sleep(this.settings.applyDelayMs);
+        if (myRunId !== this.runId) return;
+      }
     }
 
-    const root = dom.containerEl ?? dom.el ?? null;
-    if (!root) return;
-
-    await this.expandInRoot(
-      root,
+    await this.expandInPanel(
+      panel,
       this.settings.expandBelow,
       DOWN_BTN_SELECTOR,
       myRunId,
     );
-    await this.expandInRoot(
-      root,
+    await this.expandInPanel(
+      panel,
       this.settings.expandAbove,
       UP_BTN_SELECTOR,
       myRunId,
     );
   }
 
-  private async expandInRoot(
-    root: HTMLElement,
+  private async expandInPanel(
+    panel: HTMLElement,
     levels: number,
     btnSelector: string,
     myRunId: number,
@@ -152,7 +161,7 @@ export default class AutoExpandBacklinksPlugin extends Plugin {
     for (let i = 0; i < levels; i++) {
       if (myRunId !== this.runId) return;
       const buttons = Array.from(
-        root.querySelectorAll<HTMLElement>(`${MATCH_SELECTOR} ${btnSelector}`),
+        panel.querySelectorAll<HTMLElement>(`${MATCH_SELECTOR} ${btnSelector}`),
       );
       if (buttons.length === 0) return;
       for (const btn of buttons) btn.click();
@@ -205,7 +214,7 @@ class AutoExpandBacklinksSettingTab extends PluginSettingTab {
       .setName("Expand below (levels)")
       .setDesc(
         "Number of times to click each match's 'show more below' chevron. " +
-          "1 = the forum example. Each click reveals one more line of context.",
+          "Each click reveals one more line of context.",
       )
       .addText((text) =>
         text
@@ -238,10 +247,7 @@ class AutoExpandBacklinksSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName("Apply delay (ms)")
-      .setDesc(
-        "Wait after a file opens before expanding. Increase if matches " +
-          "sometimes don't expand on slow vaults.",
-      )
+      .setDesc("Wait after a file opens / panel appears before expanding.")
       .addText((text) =>
         text
           .setValue(String(this.plugin.settings.applyDelayMs))
@@ -255,10 +261,7 @@ class AutoExpandBacklinksSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName("Per-click delay (ms)")
-      .setDesc(
-        "Pause between successive expand-button clicks. Lower = faster but " +
-          "may skip levels on slow vaults.",
-      )
+      .setDesc("Pause between successive expand-button clicks.")
       .addText((text) =>
         text
           .setValue(String(this.plugin.settings.perClickDelayMs))
