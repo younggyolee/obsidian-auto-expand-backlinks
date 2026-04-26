@@ -1,6 +1,6 @@
 {
   "name": "auto-expand-backlinks",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Auto-expand backlinks panel context by configurable depth.",
   "main": "main.js",
   "scripts": {

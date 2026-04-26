@@ -92,7 +92,12 @@ export default class AutoExpandBacklinksPlugin extends Plugin {
         }
       }
     });
-    this.mutationObserver.observe(document.body, {
+    // Scope to the workspace container so we don't fire on unrelated DOM
+    // mutations (modals, tooltips, settings, etc.).
+    const root =
+      (this.app.workspace as unknown as { containerEl?: HTMLElement })
+        .containerEl ?? document.body;
+    this.mutationObserver.observe(root, {
       childList: true,
       subtree: true,
     });
