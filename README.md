@@ -1,6 +1,6 @@
 # Auto-Expand Backlinks
 
-An Obsidian plugin that automatically expands the context shown in the bottom **backlinks panel** (and the standalone backlinks pane) so you don't have to click the chevrons on every match.
+An Obsidian plugin that automatically expands the context shown in the bottom **backlinks panel** (and the standalone backlinks pane) so you don't have to click the chevrons on every match — giving you a Roam Research-style backlinks view where each linked mention appears with its surrounding bullets / paragraph already expanded.
 
 Inspired by this forum request: <https://forum.obsidian.md/t/backlink-to-display-more-context-by-default/102810>
 
@@ -17,7 +17,7 @@ When you open a note, this plugin:
 | --- | --- | --- |
 | Enabled | on | Master toggle. |
 | Show more context | on | Forces the panel's "Show more context" header toggle on by default. |
-| Expand below (levels) | `1` | How many times to click each match's "show more below" chevron. `1` matches the forum example. |
+| Expand below (levels) | `5` | How many times to click each match's "show more below" chevron. Tune to taste. |
 | Expand above (levels) | `0` | How many times to click each match's "show more above" chevron. |
 | Apply delay (ms) | `200` | Wait between file open and applying expansion. Increase for slow vaults. |
 | Per-click delay (ms) | `20` | Pause between successive expand clicks. |

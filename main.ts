@@ -12,7 +12,7 @@ interface AutoExpandBacklinksSettings {
 const DEFAULT_SETTINGS: AutoExpandBacklinksSettings = {
   enabled: true,
   showMoreContext: true,
-  expandBelow: 1,
+  expandBelow: 5,
   expandAbove: 0,
   applyDelayMs: 200,
   perClickDelayMs: 20,
