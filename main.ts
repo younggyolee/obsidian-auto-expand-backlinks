@@ -239,7 +239,7 @@ class AutoExpandBacklinksSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName("Show more context")
-      .setDesc("Force the backlinks panel's 'Show more context' toggle on.")
+      .setDesc("Always enable show more context in the backlinks panel.")
       .addToggle((toggle) =>
         toggle
           .setValue(this.plugin.settings.showMoreContext)
