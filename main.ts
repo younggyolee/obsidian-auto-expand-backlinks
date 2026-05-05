@@ -1,4 +1,4 @@
-import { App, Plugin, PluginSettingTab, Setting } from "obsidian";
+import { App, Plugin, PluginSettingTab, Setting, View } from "obsidian";
 
 interface AutoExpandBacklinksSettings {
   enabled: boolean;
@@ -143,9 +143,7 @@ export default class AutoExpandBacklinksPlugin extends Plugin {
     // to the active leaf keeps the behavior local — sidebars and other leaves
     // get expanded when the user switches to them (active-leaf-change refires
     // the apply).
-    const activeLeaf = this.app.workspace.activeLeaf;
-    const root = (activeLeaf as unknown as { containerEl?: HTMLElement })
-      ?.containerEl;
+    const root = this.app.workspace.getActiveViewOfType(View)?.containerEl;
     if (!root) return [];
     const seen = new Set<HTMLElement>();
     for (const sel of PANEL_SELECTORS) {
