@@ -81,17 +81,20 @@ export default class AutoExpandBacklinksPlugin extends Plugin {
       for (const m of mutations) {
         for (const node of Array.from(m.addedNodes)) {
           if (!(node instanceof HTMLElement)) continue;
-          const isMatch = node.matches?.(MATCH_SELECTOR);
-          const containsMatch =
-            !isMatch && !!node.querySelector?.(MATCH_SELECTOR);
-          if (!isMatch && !containsMatch) continue;
-          // Only fire when matches appear inside a backlink panel — global
-          // search results also have .search-result-file-match and would
-          // otherwise trigger expansion of any visible backlinks panel.
-          const inPanel = PANEL_SELECTORS.some(
-            (sel) =>
-              !!node.closest?.(sel) ||
-              (containsMatch && !!node.querySelector?.(`${sel} `)),
+          // Collect every match in or under the added subtree. We need to
+          // inspect each one's ancestry: when DNE adds a whole card, the
+          // backlink panel and its matches arrive together in the same
+          // subtree; when matches stream into an existing panel, only the
+          // matches are added. Both must trigger us, but global search
+          // results (also .search-result-file-match) must not.
+          const matches: HTMLElement[] = [];
+          if (node.matches?.(MATCH_SELECTOR)) matches.push(node);
+          node
+            .querySelectorAll?.<HTMLElement>(MATCH_SELECTOR)
+            .forEach((el) => matches.push(el));
+          if (matches.length === 0) continue;
+          const inPanel = matches.some((mm) =>
+            PANEL_SELECTORS.some((sel) => !!mm.closest(sel)),
           );
           if (!inPanel) continue;
           this.scheduleApply();
