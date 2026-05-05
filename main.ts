@@ -41,14 +41,13 @@ export default class AutoExpandBacklinksPlugin extends Plugin {
     await this.loadSettings();
     this.addSettingTab(new AutoExpandBacklinksSettingTab(this.app, this));
 
+    // Only react to file-open. layout-change / active-leaf-change fire on
+    // every minor UI change (Cmd+Shift+F, sidebar toggle, focus shift), and
+    // since expandInPanel re-clicks chevrons N times each run, those would
+    // make backlink lines grow unboundedly. New panels appearing dynamically
+    // (DNE cards, sidebar pane opened) are handled by the MutationObserver.
     this.registerEvent(
       this.app.workspace.on("file-open", () => this.scheduleApply()),
-    );
-    this.registerEvent(
-      this.app.workspace.on("layout-change", () => this.scheduleApply()),
-    );
-    this.registerEvent(
-      this.app.workspace.on("active-leaf-change", () => this.scheduleApply()),
     );
 
     this.app.workspace.onLayoutReady(() => {
@@ -82,13 +81,21 @@ export default class AutoExpandBacklinksPlugin extends Plugin {
       for (const m of mutations) {
         for (const node of Array.from(m.addedNodes)) {
           if (!(node instanceof HTMLElement)) continue;
-          if (
-            node.matches?.(MATCH_SELECTOR) ||
-            node.querySelector?.(MATCH_SELECTOR)
-          ) {
-            this.scheduleApply();
-            return;
-          }
+          const isMatch = node.matches?.(MATCH_SELECTOR);
+          const containsMatch =
+            !isMatch && !!node.querySelector?.(MATCH_SELECTOR);
+          if (!isMatch && !containsMatch) continue;
+          // Only fire when matches appear inside a backlink panel — global
+          // search results also have .search-result-file-match and would
+          // otherwise trigger expansion of any visible backlinks panel.
+          const inPanel = PANEL_SELECTORS.some(
+            (sel) =>
+              !!node.closest?.(sel) ||
+              (containsMatch && !!node.querySelector?.(`${sel} `)),
+          );
+          if (!inPanel) continue;
+          this.scheduleApply();
+          return;
         }
       }
     });
