@@ -110,6 +110,7 @@ export default class AutoExpandBacklinksPlugin extends Plugin {
     }
     this.pendingTimeout = window.setTimeout(() => {
       this.pendingTimeout = null;
+      if (isExternalInputFocused()) return;
       void this.applyToAllPanels();
     }, this.settings.applyDelayMs);
   }
@@ -119,22 +120,33 @@ export default class AutoExpandBacklinksPlugin extends Plugin {
     const panels = this.collectPanels();
     for (const panel of panels) {
       if (myRunId !== this.runId) return;
+      if (isExternalInputFocused()) return;
       await this.applyToPanel(panel, myRunId);
     }
   }
 
   private collectPanels(): HTMLElement[] {
+    // Only collect panels inside the active leaf. Clicking expand buttons
+    // activates the panel's parent leaf and steals focus, which breaks any
+    // input focus elsewhere (global search, quick switcher, command palette,
+    // backlink filter, even just typing in another split's editor). Limiting
+    // to the active leaf keeps the behavior local — sidebars and other leaves
+    // get expanded when the user switches to them (active-leaf-change refires
+    // the apply).
+    const activeLeaf = this.app.workspace.activeLeaf;
+    const root = (activeLeaf as unknown as { containerEl?: HTMLElement })
+      ?.containerEl;
+    if (!root) return [];
     const seen = new Set<HTMLElement>();
     for (const sel of PANEL_SELECTORS) {
-      document
-        .querySelectorAll<HTMLElement>(sel)
-        .forEach((el) => seen.add(el));
+      root.querySelectorAll<HTMLElement>(sel).forEach((el) => seen.add(el));
     }
     return Array.from(seen);
   }
 
   private async applyToPanel(panel: HTMLElement, myRunId: number) {
     if (this.settings.showMoreContext) {
+      if (isExternalInputFocused()) return;
       const toggle = panel.querySelector<HTMLElement>(HEADER_TOGGLE_SELECTOR);
       if (toggle && !toggle.classList.contains("is-active")) {
         toggle.click();
@@ -165,6 +177,7 @@ export default class AutoExpandBacklinksPlugin extends Plugin {
   ) {
     for (let i = 0; i < levels; i++) {
       if (myRunId !== this.runId) return;
+      if (isExternalInputFocused()) return;
       const buttons = Array.from(
         panel.querySelectorAll<HTMLElement>(`${MATCH_SELECTOR} ${btnSelector}`),
       );
@@ -177,6 +190,18 @@ export default class AutoExpandBacklinksPlugin extends Plugin {
 
 function sleep(ms: number): Promise<void> {
   return new Promise((r) => window.setTimeout(r, ms));
+}
+
+// Bail when an input/textarea has focus (e.g. global search via Cmd+Shift+F,
+// or the backlinks panel's own filter input). Clicking expand buttons
+// activates the parent leaf and would steal focus back to the editor.
+// Obsidian's note editor is contenteditable, not <input>, so typing in a note
+// doesn't trigger this.
+function isExternalInputFocused(): boolean {
+  const active = document.activeElement;
+  if (!active) return false;
+  const tag = active.tagName;
+  return tag === "INPUT" || tag === "TEXTAREA";
 }
 
 class AutoExpandBacklinksSettingTab extends PluginSettingTab {
