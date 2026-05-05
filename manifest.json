@@ -1,7 +1,7 @@
 {
   "id": "auto-expand-backlinks",
   "name": "Auto-expand backlinks",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "minAppVersion": "1.4.0",
   "description": "Automatically expand the surrounding context of each match in the backlinks panel, similar to Roam Research.",
   "author": "younggyolee",
