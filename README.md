@@ -1,3 +1,5 @@
+<img width="918" height="668" alt="image" src="https://github.com/user-attachments/assets/bc0274cf-d2af-4497-b6af-72a050ef398a" />
+
 # Auto-Expand Backlinks
 
 An Obsidian plugin that automatically expands the context shown in the bottom **backlinks panel** (and the standalone backlinks pane) so you don't have to click the chevrons on every match — giving you a Roam Research-style backlinks view where each linked mention appears with its surrounding bullets / paragraph already expanded.
@@ -21,17 +23,6 @@ When you open a note, this plugin:
 | Expand above (levels) | `0` | How many times to click each match's "show more above" chevron. |
 | Apply delay (ms) | `200` | Wait between file open and applying expansion. Increase for slow vaults. |
 | Per-click delay (ms) | `20` | Pause between successive expand clicks. |
-
-## Install via BRAT (recommended for now)
-
-1. Install the [BRAT plugin](https://github.com/TfTHacker/obsidian42-brat).
-2. Open BRAT settings → **Add Beta plugin**.
-3. Enter this repo URL.
-4. Enable **Auto-Expand Backlinks** in Community plugins.
-
-## Install manually
-
-Download `main.js`, `manifest.json`, `styles.css` from the latest [release](../../releases/latest) into `<vault>/.obsidian/plugins/auto-expand-backlinks/`, then enable in Settings → Community plugins.
 
 ## How it works
 
